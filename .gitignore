@@ -2,6 +2,9 @@
 *.xlsx
 *.html
 *__pycache__/
+*.spyproject/
 
 
 *elastic_net.py
+*pca.py
+*comparacion.py

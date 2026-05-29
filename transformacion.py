@@ -18,6 +18,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from ydata_profiling import ProfileReport
 from statsmodels.tsa.stattools import adfuller
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -44,15 +46,20 @@ columnas_continuas = df_ml.columns.tolist()
 #matrices para transformacion
 matrices = [df_eco, df_ml]
 
-#tranformacion log -- tasa de variacion anual 
+#tranformacion log -- tasa de variacion anual (menos ipc y mwh_comercial)
 for variablex in matrices:
     for col in columnas_continuas:
-        #diff algoritmica de las columnas
-        variablex[col + '_ln'] = (np.log(variablex[col]) - np.log(variablex[col].shift(12))) * 100
-        # [col] es el nombre de la varible dentro de la matriz
-        # np.log(variablex[col]) toma el mes y le aplilca ln 
-        # np.log(variablex[col].shift(12)) retrocede 12 obs
-        # se restan y para obtener un % se multiplica por 100
+        if col in ['ipc_us', 'mwh_comercial']:
+            variablex[col + '_ln'] = (np.log(variablex[col]) - np.log(variablex[col].shift(1))) * 1200
+            #lo que se hara es una tasa intermensual
+            # tal que Δln(ipc) = (ln(ipcₜ) - ln(ipcₜ-1)) (100 #para hacerlo %) (12 #meses) 
+        else:
+            #diff algoritmica de las columnas
+            variablex[col + '_ln'] = (np.log(variablex[col]) - np.log(variablex[col].shift(12))) * 100
+            # [col] es el nombre de la varible dentro de la matriz
+            # np.log(variablex[col]) toma el mes y le aplilca ln 
+            # np.log(variablex[col].shift(12)) retrocede 12 obs
+            # se restan y para obtener un % se multiplica por 100
 
 #filtrar y eliminar los 12 nan        
 df_eco_ln = df_eco.filter(regex='_ln|Dummy').dropna()
@@ -72,6 +79,7 @@ print(f"Observaciones: {df_ml_ln.index.size}")
 
 raiz_ml = df_ml_ln.copy()
 
+print('\nTest Dickey fuller')
 def prueba_dickey_fuller(dataframe, criterio='BIC'):
     resultados_temporales = []
 
@@ -90,33 +98,9 @@ def prueba_dickey_fuller(dataframe, criterio='BIC'):
 tabla_adf = prueba_dickey_fuller(dataframe=raiz_ml)
 
 print(tabla_adf)
-
-#por correlacion se elimina mwh_comercial
-#el ipc debe diferenciarse de nuevo
-
-# %% 2da diff ipc
-
-for matriz in [df_eco_ln, df_ml_ln]:
-    matriz['ipc_us_ln'] = matriz['ipc_us_ln'] - matriz['ipc_us_ln'].shift(1)
-
-#eliminar mwg_comercial_ln
-df_eco_ln = df_eco_ln.drop(columns=['mwh_comercial_ln'])
-df_ml_ln = df_ml_ln.drop(columns=['mwh_comercial_ln'])
-
-# %% despues de eliminar mwh_comercial_ln
-#eliminar los na
-df_eco_ln = df_eco_ln.dropna()
-df_ml_ln = df_ml_ln.dropna()
-
-#cambio de nombre
-for matriz in [df_eco_ln, df_ml_ln]:
-    matriz.rename(columns={'ipc_us_ln': 'ipc_us_ln_i2'}, inplace=True)
+print('\nLas variables son tasas de variancion anual')
+print('\nPara ipc_us y mwh_comercial es tasa de variacion intermesual')
 
 print("\nresumen")
 print(f"matriz ML: {df_ml_ln.shape}")
 print(f"matriz Econometria: {df_eco_ln.shape}")
-
-#prueba de raiz unitaria
-print('\nestacionariedad ipc I(2)\n')
-tabla_adf1 = prueba_dickey_fuller(dataframe=df_ml_ln, criterio='BIC')
-print(tabla_adf1)
